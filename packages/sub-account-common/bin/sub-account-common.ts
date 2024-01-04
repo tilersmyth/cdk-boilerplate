@@ -2,12 +2,17 @@
 import { getStageName } from "@cdk-boilerplate/common";
 import * as cdk from "aws-cdk-lib";
 
-import { SubAccountCommonStack } from "../lib/sub-account-common-stack";
+import { buildAppConfig } from "../lib/app-config";
+import { CrossAccountRolesStack } from "../lib/cross-account-roles";
 
 const app = new cdk.App();
 
 const stageName = getStageName(app);
 
-console.log(stageName);
+const config = buildAppConfig()
 
-// new SubAccountCommonStack(app, "SubAccountCommonStack");
+new CrossAccountRolesStack(app, `${stageName}-CrossAccountRoles`, {
+    rootAccountId: config.rootAccountId,
+})
+
+app.synth();

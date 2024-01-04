@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-import { StageNameEnum, getStageName } from "@cdk-boilerplate/common";
 import * as cdk from "aws-cdk-lib";
 
-import { RootAccountStack } from "../lib/root-account-stack";
+import { buildAppConfig } from "../lib/app-config";
+import { UserStack } from "../lib/user-stack";
 
 const app = new cdk.App();
 
-const stageName = getStageName(app);
+const config = buildAppConfig()
 
-console.log(stageName);
+new UserStack(app, "UserStack", {
+    githubUserAllowedStsRoles: config.crossAccountArns,
+  });
 
-// new RootAccountStack(app, "RootAccountStack");
+app.synth();
