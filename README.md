@@ -30,7 +30,7 @@
     - Run `aws configure --profile <profile name>` (this will populate the `~/.aws/credentials` file)
     - Open `~/.aws/config`, add the following snippet for each organization created:
     ```
-    [profile <stage name>]
+    [profile <sub profile alias>] (e.g <profile name>-<stage name>)
     role_arn = arn:aws:iam::<org ID>:role/OrganizationAccountAccessRole
     source_profile = <profile name (from above)>
     ```
@@ -38,8 +38,8 @@
 4. Setup, bootstrap and deploy the **sub account stack**. Run the following from the repo root:
     - `cd packages/sub-account-common`
     - `cp example.config-env.json config-env.json` and enter values
-    - `cdk bootstrap --profile=<profile name> --context stage=<stage name>` (this needs to be done for each environment)
-    - `cdk deploy --profile=<profile name> --context stage=<stage name> --all` (this will output the role ARN - this will be used in the next step!)
+    - `cdk bootstrap --profile=<sub profile alias> --context stage=<stage name>` (this needs to be done for each environment)
+    - `cdk deploy --profile=<sub profile alias> --context stage=<stage name> --all` (this will output the role ARN - this will be used in the next step!)
 
 **_HINT:_** Add `deploy` (and `destroy`) scripts to the `scripts` section of `package.json` for added convenience
 
