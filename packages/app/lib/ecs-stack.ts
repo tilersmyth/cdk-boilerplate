@@ -122,7 +122,5 @@ export class Ecstack extends cdk.Stack {
       stageName: 'DeployServices',
       actions: [pipeline.deploy(apl.service)],
     });
-
-    
   }
 }

@@ -9,6 +9,6 @@ const app = new cdk.App();
 
 const stageName = getStageName(app);
 
-const config = buildAppConfig()
+const config = buildAppConfig();
 
-new Ecstack(app, 'AppStack', {stageName, config});
+new Ecstack(app, 'AppStack', { stageName, config });

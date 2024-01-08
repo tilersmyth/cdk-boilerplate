@@ -1,3 +1,3 @@
 export enum StageNameEnum {
-  TESTING = "testing",
+  TESTING = 'testing',
 }

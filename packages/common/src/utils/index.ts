@@ -1,1 +1,1 @@
-export * from "./stage-name";
+export * from './stage-name';
