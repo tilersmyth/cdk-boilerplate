@@ -9,7 +9,6 @@ import { Construct } from 'constructs';
 interface Props {
   stageName: string;
   repository: cdk.aws_ecr.Repository;
-  containerName: string;
 }
 
 export class Pipeline extends codepipeline.Pipeline {
@@ -36,11 +35,6 @@ export class Pipeline extends codepipeline.Pipeline {
     this.imageDefinitionOuput = new codepipeline.Artifact(
       'imageDefinitionArtifacts',
     );
-
-    // Configure Pipeline to Auto-Deploy
-    // Rule implements: https://docs.aws.amazon.com/codepipeline/latest/userguide/create-cwe-ecr-source-console.html
-    // More info on AWS Event Rules: https://docs.aws.amazon.com/cdk/api/latest/docs/aws-events-readme.html
-    this.autoDeploy();
   }
 
   private createProject = () =>
@@ -55,7 +49,10 @@ export class Pipeline extends codepipeline.Pipeline {
           buildImage: codebuild.LinuxBuildImage.STANDARD_5_0,
           environmentVariables: {
             CONTAINER_NAME: {
-              value: this.props.containerName,
+              value: this.props.repository.repositoryName,
+            },
+            IMAGE_URI: {
+              value: `${this.props.repository.repositoryUriForTag()}:latest`,
             },
           },
         },
@@ -80,7 +77,7 @@ export class Pipeline extends codepipeline.Pipeline {
       },
     );
 
-  private autoDeploy = () => {
+  public autoDeploy = () => {
     new events.Rule(this, `AutoDeploy`, {
       description: `Trigger Code Pipeline Deploy`,
       targets: [new targets.CodePipeline(this)],

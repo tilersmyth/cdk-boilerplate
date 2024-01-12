@@ -36,7 +36,11 @@ export class UserStack extends cdk.Stack {
       userName: githubEcrAccessUser.userName,
     });
     // NOTE: uncomment these lines to print these access keys during `yarn cdk deploy`
-    // new cdk.CfnOutput(this, 'githubActionsAccessKeyId', { value: accessKey.ref });
-    // new cdk.CfnOutput(this, 'githubActionsSecretAccessKey', { value: accessKey.attrSecretAccessKey });
+    // new cdk.CfnOutput(this, 'githubActionsAccessKeyId', {
+    //   value: accessKey.ref,
+    // });
+    // new cdk.CfnOutput(this, 'githubActionsSecretAccessKey', {
+    //   value: accessKey.attrSecretAccessKey,
+    // });
   }
 }

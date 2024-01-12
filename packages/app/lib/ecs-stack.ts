@@ -19,8 +19,9 @@ export class Ecstack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id, props);
 
+    const repositoryName = `${props.stageName}-ecr-repo`;
     const ecrRepository = new ecr.Repository(this, 'EcrRepo', {
-      repositoryName: `${props.stageName}-ecr-repo`,
+      repositoryName,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
@@ -73,7 +74,6 @@ export class Ecstack extends cdk.Stack {
     // Meed to use publicly available image to initially spin up ECS services.
     // If we try to use image that's not available it will break CDK deployment.
     const temporary_image = 'amazon/amazon-ecs-sample';
-    const containerName = `${props.stageName}-container`;
     const apl = new ecs_patterns.ApplicationLoadBalancedFargateService(
       this,
       'FargateNodeService',
@@ -81,9 +81,8 @@ export class Ecstack extends cdk.Stack {
         cluster,
         taskImageOptions: {
           image: ecs.ContainerImage.fromRegistry(temporary_image),
-          containerName,
-          family: `${props.stageName}-ecs-task-def`,
-          containerPort: 80,
+          containerName: repositoryName,
+          containerPort: 3000,
           executionRole,
         },
         cpu: 256,
@@ -94,6 +93,7 @@ export class Ecstack extends cdk.Stack {
           subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
         }),
         loadBalancer: loadbalancer,
+        enableExecuteCommand: true,
       },
     );
 
@@ -105,7 +105,6 @@ export class Ecstack extends cdk.Stack {
     const pipeline = new Pipeline(this, 'Deployment', {
       stageName: props.stageName,
       repository: ecrRepository,
-      containerName,
     });
 
     pipeline.addStage({
@@ -122,5 +121,10 @@ export class Ecstack extends cdk.Stack {
       stageName: 'DeployServices',
       actions: [pipeline.deploy(apl.service)],
     });
+
+    // Configure Pipeline to Auto-Deploy
+    // Rule implements: https://docs.aws.amazon.com/codepipeline/latest/userguide/create-cwe-ecr-source-console.html
+    // More info on AWS Event Rules: https://docs.aws.amazon.com/cdk/api/latest/docs/aws-events-readme.html
+    pipeline.autoDeploy();
   }
 }
