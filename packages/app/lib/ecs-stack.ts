@@ -71,18 +71,24 @@ export class Ecstack extends cdk.Stack {
       ],
     });
 
+    const securityGroup = new ec2.SecurityGroup(this, 'WebSg', {
+      vpc,
+      allowAllOutbound: true,
+    });
+
     // Meed to use publicly available image to initially spin up ECS services.
     // If we try to use image that's not available it will break CDK deployment.
-    const temporary_image = 'amazon/amazon-ecs-sample';
+    const temporary_image = 'okaycloud/dummywebserver:latest';
     const apl = new ecs_patterns.ApplicationLoadBalancedFargateService(
       this,
       'FargateNodeService',
       {
         cluster,
         taskImageOptions: {
-          image: ecs.ContainerImage.fromRegistry(temporary_image),
+          //   image: ecs.ContainerImage.fromRegistry(temporary_image),
+          image: ecs.ContainerImage.fromEcrRepository(ecrRepository, 'latest'),
           containerName: repositoryName,
-          containerPort: 3000,
+          containerPort: 8080,
           executionRole,
         },
         cpu: 256,
@@ -94,6 +100,7 @@ export class Ecstack extends cdk.Stack {
         }),
         loadBalancer: loadbalancer,
         enableExecuteCommand: true,
+        securityGroups: [securityGroup],
       },
     );
 

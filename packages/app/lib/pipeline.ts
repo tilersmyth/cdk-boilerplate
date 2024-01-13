@@ -61,11 +61,11 @@ export class Pipeline extends codepipeline.Pipeline {
           phases: {
             build: {
               commands: [
-                'apt-get install jq -y',
-                "ImageURI=$(cat imageDetail.json | jq -r '.ImageURI')",
+                // 'apt-get install jq -y',
+                // "ImageURI=$(cat imageDetail.json | jq -r '.ImageURI')",
                 'printf \'[{"name":"CONTAINER_NAME","imageUri":"IMAGE_URI"}]\' > imagedefinitions.json',
                 'sed -i -e "s|CONTAINER_NAME|$CONTAINER_NAME|g" imagedefinitions.json',
-                'sed -i -e "s|IMAGE_URI|$ImageURI|g" imagedefinitions.json',
+                'sed -i -e "s|IMAGE_URI|$IMAGE_URI|g" imagedefinitions.json',
                 'cat imagedefinitions.json',
               ],
             },

@@ -12,3 +12,5 @@ const stageName = getStageName(app);
 const config = buildAppConfig();
 
 new Ecstack(app, 'AppStack', { stageName, config });
+
+app.synth();
