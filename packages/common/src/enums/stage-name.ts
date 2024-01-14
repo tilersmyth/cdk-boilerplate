@@ -1,3 +1,4 @@
 export enum StageNameEnum {
-  TESTING = 'testing',
+  DEVELOPMENT = 'development',
+  PRODUCTION = 'production',
 }

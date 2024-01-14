@@ -41,6 +41,13 @@ module.exports = {
             pathGroupsExcludedImportTypes: ['internal'],
             'newlines-between': 'always',
             alphabetize: { order: 'asc', caseInsensitive: true },
+            pathGroups: [
+              {
+                pattern: '@cdk-boilerplate/**',
+                group: 'internal',
+                position: 'before',
+              },
+            ],
           },
         ],
       },

@@ -1,4 +1,22 @@
 {
-  "port": 3000,
-  "<environment name>": {}
+  "project_name": "",
+  "production": {
+    "hostedZoneId": "",
+    "zoneName": "",
+    "acmCertificateArn": "",
+    "oAuth": {
+      "googleClientId": "",
+      "googleClientSecret": "",
+      "callbackUrls": [],
+      "logoutUrls": []
+    }
+  },
+  "development": {
+    "oAuth": {
+      "googleClientId": "",
+      "googleClientSecret": "",
+      "callbackUrls": [],
+      "logoutUrls": []
+    }
+  }
 }
