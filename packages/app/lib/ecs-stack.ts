@@ -1,14 +1,20 @@
 import * as cdk from 'aws-cdk-lib';
+import * as codebuild from 'aws-cdk-lib/aws-codebuild';
+import { PipelineProject } from 'aws-cdk-lib/aws-codebuild';
+import { Artifact, Pipeline } from 'aws-cdk-lib/aws-codepipeline';
+import {
+  CodeBuildAction,
+  EcrSourceAction,
+  EcsDeployAction,
+} from 'aws-cdk-lib/aws-codepipeline-actions';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
-import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns';
-import { ApplicationLoadBalancer } from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as ecspatterns from 'aws-cdk-lib/aws-ecs-patterns';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
 import { ConfigEnv } from './app-config';
-import { Pipeline } from './pipeline';
 
 interface Props extends cdk.StackProps {
   stageName: string;
@@ -16,122 +22,201 @@ interface Props extends cdk.StackProps {
 }
 
 export class Ecstack extends cdk.Stack {
+  private repoName: string;
+
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id, props);
 
-    const repositoryName = `${props.stageName}-ecr-repo`;
-    const ecrRepository = new ecr.Repository(this, 'EcrRepo', {
-      repositoryName,
+    this.repoName = props.stageName;
+
+    const vpc = new ec2.Vpc(this, 'my.vpc', {
+      cidr: '10.0.0.0/16',
+      maxAzs: 2,
+    });
+
+    const ecrRepository = new ecr.Repository(this, 'EcsRepository', {
+      repositoryName: `${this.repoName}-ecr-repo`,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
 
-    ecrRepository.addLifecycleRule({
-      maxImageCount: 20,
-    });
-
-    /**
-     * create a new vpc with single nat gateway
-     */
-    const vpc = new ec2.Vpc(this, 'FargateNodeJsVpc', {
-      maxAzs: 2,
-      natGateways: 1,
-      subnetConfiguration: [
-        {
-          cidrMask: 24,
-          name: 'ingress',
-          subnetType: ec2.SubnetType.PUBLIC,
-        },
-        {
-          cidrMask: 24,
-          name: 'application',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-        },
-      ],
-    });
-
-    const loadbalancer = new ApplicationLoadBalancer(this, 'LoadBalancer', {
-      vpc,
-      internetFacing: true,
-      vpcSubnets: vpc.selectSubnets({
-        subnetType: ec2.SubnetType.PUBLIC,
-      }),
-    });
-
-    const cluster = new ecs.Cluster(this, 'Cluster', {
-      vpc,
-      clusterName: `${props.stageName}-ecs-cluster`,
-    });
-
-    const executionRole = new iam.Role(this, 'ExecutionRole', {
-      assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName(
-          'service-role/AmazonECSTaskExecutionRolePolicy',
-        ),
-      ],
-    });
-
-    const securityGroup = new ec2.SecurityGroup(this, 'WebSg', {
-      vpc,
-      allowAllOutbound: true,
-    });
-
-    // Meed to use publicly available image to initially spin up ECS services.
-    // If we try to use image that's not available it will break CDK deployment.
-    const temporary_image = 'okaycloud/dummywebserver:latest';
-    const apl = new ecs_patterns.ApplicationLoadBalancedFargateService(
-      this,
-      'FargateNodeService',
-      {
-        cluster,
-        taskImageOptions: {
-          //   image: ecs.ContainerImage.fromRegistry(temporary_image),
-          image: ecs.ContainerImage.fromEcrRepository(ecrRepository, 'latest'),
-          containerName: repositoryName,
-          containerPort: 8080,
-          executionRole,
-        },
-        cpu: 256,
-        memoryLimitMiB: 512,
-        desiredCount: 2,
-        serviceName: `${props.stageName}-esc-service`,
-        taskSubnets: vpc.selectSubnets({
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-        }),
-        loadBalancer: loadbalancer,
-        enableExecuteCommand: true,
-        securityGroups: [securityGroup],
-      },
+    const pipelineProject = this.createPipelineProject(ecrRepository);
+    pipelineProject.role?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        'AmazonEC2ContainerRegistryPowerUser',
+      ),
     );
 
-    const secGroup = new ec2.SecurityGroup(this, 'CodePipelineSg', {
+    const sourceOutput = new Artifact();
+    const buildOutput = new Artifact();
+
+    const ecrSourceAction = this.createSourceAction(
+      ecrRepository,
+      sourceOutput,
+    );
+    const buildAction = this.buildImageDefinition(
+      pipelineProject,
+      sourceOutput,
+      buildOutput,
+    );
+    const ecsDeployAction = this.createEcsDeployAction(
       vpc,
-      allowAllOutbound: true,
+      ecrRepository,
+      buildOutput,
+      pipelineProject,
+    );
+
+    const pipeline = new Pipeline(this, 'my_pipeline_', {
+      stages: [
+        {
+          stageName: 'Source',
+          actions: [ecrSourceAction],
+        },
+        {
+          stageName: 'Build',
+          actions: [buildAction],
+        },
+        {
+          stageName: 'Deploy',
+          actions: [ecsDeployAction],
+        },
+      ],
+      pipelineName: 'my_pipeline',
+    });
+  }
+
+  private createPipelineProject(
+    ecrRepo: ecr.Repository,
+  ): codebuild.PipelineProject {
+    const pipelineProject = new codebuild.PipelineProject(
+      this,
+      'my-codepipeline',
+      {
+        projectName: 'my-codepipeline',
+        cache: codebuild.Cache.local(codebuild.LocalCacheMode.CUSTOM),
+        environment: {
+          buildImage: codebuild.LinuxBuildImage.STANDARD_5_0,
+          privileged: true,
+        },
+        environmentVariables: {
+          ECR_REPO: {
+            value: ecrRepo.repositoryUriForTag(),
+          },
+        },
+        buildSpec: codebuild.BuildSpec.fromObject({
+          version: '0.2',
+          phases: {
+            build: {
+              commands: [
+                'echo creating imagedefinitions.json dynamically',
+                'printf \'[{"name":"' +
+                  this.repoName +
+                  '","imageUri": "' +
+                  ecrRepo.repositoryUriForTag() +
+                  ':latest"}]\' > imagedefinitions.json',
+                'echo Build completed on `date`',
+              ],
+            },
+          },
+          artifacts: {
+            files: ['imagedefinitions.json'],
+          },
+        }),
+      },
+    );
+    return pipelineProject;
+  }
+
+  private createSourceAction(ecrRepo: ecr.Repository, sourceOutput: Artifact) {
+    return new EcrSourceAction({
+      actionName: 'ListenEcrPush',
+      repository: ecrRepo,
+      imageTag: 'latest',
+      output: sourceOutput,
+    });
+  }
+
+  private buildImageDefinition(
+    pipelineProject: PipelineProject,
+    sourceOutput: Artifact,
+    buildOutput: Artifact,
+  ) {
+    return new CodeBuildAction({
+      actionName: 'ConvertEcrOutputToImageDefinitions',
+      project: pipelineProject,
+      input: sourceOutput,
+      outputs: [buildOutput],
+    });
+  }
+
+  public createEcsDeployAction(
+    vpc: ec2.Vpc,
+    ecrRepo: ecr.Repository,
+    buildOutput: Artifact,
+    pipelineProject: PipelineProject,
+  ): EcsDeployAction {
+    return new EcsDeployAction({
+      actionName: 'EcsDeployAction',
+      service: this.createLoadBalancedFargateService(
+        this,
+        vpc,
+        ecrRepo,
+        pipelineProject,
+      ).service,
+      input: buildOutput,
+    });
+  }
+
+  createLoadBalancedFargateService(
+    scope: Construct,
+    vpc: ec2.Vpc,
+    ecrRepository: ecr.Repository,
+    pipelineProject: PipelineProject,
+  ) {
+    const fargateService =
+      new ecspatterns.ApplicationLoadBalancedFargateService(
+        scope,
+        'myLbFargateService',
+        {
+          vpc: vpc,
+          memoryLimitMiB: 512,
+          cpu: 256,
+          assignPublicIp: true,
+          // listenerPort: 8080,
+          taskImageOptions: {
+            containerName: this.repoName,
+            image: ecs.ContainerImage.fromRegistry(
+              'okaycloud/dummywebserver:latest',
+            ),
+            containerPort: 8080,
+          },
+        },
+      );
+
+    fargateService.taskDefinition.executionRole?.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName(
+        'AmazonEC2ContainerRegistryPowerUser',
+      ),
+    );
+
+    fargateService.targetGroup.configureHealthCheck({
+      path: '/api/health',
+      healthyHttpCodes: '200-299',
+      interval: cdk.Duration.seconds(45),
+      timeout: cdk.Duration.seconds(30),
+      unhealthyThresholdCount: 5,
+      healthyThresholdCount: 2,
     });
 
-    const pipeline = new Pipeline(this, 'Deployment', {
-      stageName: props.stageName,
-      repository: ecrRepository,
-    });
+    fargateService.targetGroup.setAttribute(
+      'deregistration_delay.timeout_seconds',
+      '60',
+    );
 
-    pipeline.addStage({
-      stageName: 'Source',
-      actions: [pipeline.listenToPush()],
-    });
+    fargateService.targetGroup.setAttribute(
+      'slow_start.duration_seconds',
+      '30',
+    );
 
-    pipeline.addStage({
-      stageName: 'BuildImages',
-      actions: [pipeline.buildImage()],
-    });
-
-    pipeline.addStage({
-      stageName: 'DeployServices',
-      actions: [pipeline.deploy(apl.service)],
-    });
-
-    // Configure Pipeline to Auto-Deploy
-    // Rule implements: https://docs.aws.amazon.com/codepipeline/latest/userguide/create-cwe-ecr-source-console.html
-    // More info on AWS Event Rules: https://docs.aws.amazon.com/cdk/api/latest/docs/aws-events-readme.html
-    pipeline.autoDeploy();
+    return fargateService;
   }
 }
