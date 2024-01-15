@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 import { PipelineProject } from 'aws-cdk-lib/aws-codebuild';
 import { Artifact, Pipeline } from 'aws-cdk-lib/aws-codepipeline';
@@ -11,21 +12,49 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ecspatterns from 'aws-cdk-lib/aws-ecs-patterns';
+import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
 
+import { StageNameEnum } from '@cdk-boilerplate/common';
+
 import { ConfigEnv } from './app-config';
+import { CognitoUserPoolStack } from './cognito-stack';
 
 interface Props extends cdk.StackProps {
-  stageName: string;
+  stageName: StageNameEnum;
   config: ConfigEnv;
+  // cognito: CognitoUserPoolStack;
 }
 
 export class Ecstack extends cdk.Stack {
+  private props: Props;
   private repoName: string;
+  private certificate: cdk.aws_certificatemanager.Certificate;
+  private hostedZone: cdk.aws_route53.IHostedZone;
 
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id, props);
+
+    this.props = props;
+
+    const config = props.config.production;
+
+    this.hostedZone = route53.HostedZone.fromHostedZoneAttributes(
+      this,
+      'HostedZone',
+      {
+        hostedZoneId: config.hostedZoneId,
+        zoneName: config.zoneName,
+      },
+    );
+
+    this.certificate = new acm.Certificate(this, 'AcmHostedCertificate', {
+      domainName: this.hostedZone.zoneName,
+      validation: acm.CertificateValidation.fromDns(this.hostedZone),
+    });
 
     this.repoName = props.stageName;
 
@@ -166,7 +195,7 @@ export class Ecstack extends cdk.Stack {
     });
   }
 
-  createLoadBalancedFargateService(
+  public createLoadBalancedFargateService(
     scope: Construct,
     vpc: ec2.Vpc,
     ecrRepository: ecr.Repository,
@@ -181,13 +210,24 @@ export class Ecstack extends cdk.Stack {
           memoryLimitMiB: 512,
           cpu: 256,
           assignPublicIp: true,
-          // listenerPort: 8080,
+          // certificate: this.certificate,
           taskImageOptions: {
             containerName: this.repoName,
             image: ecs.ContainerImage.fromRegistry(
               'okaycloud/dummywebserver:latest',
             ),
             containerPort: 8080,
+            // environment: {
+            //   AWS_COGNITO_REGION: 'us-east-1',
+            //   AWS_COGNITO_POOL_ID: this.props.cognito.poolId,
+            //   AWS_COGNITO_APP_CLIENT_ID: this.props.cognito.poolClientId,
+            //   AWS_COGNITO_IDENTITY_ID: this.props.cognito.identityPoolId,
+            //   AWS_OAUTH_DOMAIN: this.props.cognito.oauthDomain,
+            //   AWS_OAUTH_REDIRECT_SIGNIN:
+            //     this.props.config.production.oAuth.callbackUrls[0],
+            //   AWS_OAUTH_REDIRECT_SIGNOUT:
+            //     this.props.config.production.oAuth.logoutUrls[0],
+            // },
           },
         },
       );
@@ -216,6 +256,14 @@ export class Ecstack extends cdk.Stack {
       'slow_start.duration_seconds',
       '30',
     );
+
+    new route53.ARecord(this, 'MapDomain', {
+      zone: this.hostedZone,
+      recordName: undefined,
+      target: route53.RecordTarget.fromAlias(
+        new route53targets.LoadBalancerTarget(fargateService.loadBalancer),
+      ),
+    });
 
     return fargateService;
   }

@@ -14,8 +14,9 @@ interface Props {
 
 export class CognitoUserPoolStack extends cdk.Stack {
   public poolId: string;
-  public PoolClientId: string;
-  public IdentityPoolId: string;
+  public poolClientId: string;
+  public identityPoolId: string;
+  public oauthDomain: string;
 
   constructor(scope: Construct, id: string, props: Props) {
     super(scope, id);
@@ -75,7 +76,7 @@ export class CognitoUserPoolStack extends cdk.Stack {
       },
     });
 
-    this.PoolClientId = appClient.userPoolClientId;
+    this.poolClientId = appClient.userPoolClientId;
 
     const provider = new cognito.UserPoolIdentityProviderGoogle(
       this,
@@ -95,11 +96,13 @@ export class CognitoUserPoolStack extends cdk.Stack {
 
     appClient.node.addDependency(provider);
 
-    userPool.addDomain('AuthDomain', {
+    const domain = userPool.addDomain('AuthDomain', {
       cognitoDomain: {
         domainPrefix: `${props.config.project_name}-${props.stageName}`,
       },
     });
+
+    this.oauthDomain = domain.domainName;
 
     const identityPool = new cognito.CfnIdentityPool(this, 'IdentityPool', {
       allowUnauthenticatedIdentities: false,
@@ -110,7 +113,7 @@ export class CognitoUserPoolStack extends cdk.Stack {
         },
       ],
     });
-    this.IdentityPoolId = identityPool.ref;
+    this.identityPoolId = identityPool.ref;
 
     const identityPoolRole = new iam.Role(
       this,
@@ -159,16 +162,14 @@ export class CognitoUserPoolStack extends cdk.Stack {
         value: this.poolId,
       });
       new cdk.CfnOutput(this, 'CognitoPoolClientId', {
-        value: this.PoolClientId,
+        value: this.poolClientId,
       });
       new cdk.CfnOutput(this, 'CognitoIdentityPoolId', {
-        value: this.IdentityPoolId,
+        value: this.identityPoolId,
       });
-
-      //   TO DO
-      //   new cdk.CfnOutput(this, 'CognitoOauthDomain', {
-      //     value: '',
-      //   });
+      new cdk.CfnOutput(this, 'CognitoOauthDomain', {
+        value: this.oauthDomain,
+      });
     }
   }
 }

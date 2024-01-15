@@ -18,10 +18,14 @@ const ckdStageName = capitalize(stageName);
 
 const config = buildAppConfig();
 
-new CognitoUserPoolStack(app, `CognitoUserPool${ckdStageName}`, {
-  stageName,
-  config,
-});
+// const cognito = new CognitoUserPoolStack(
+//   app,
+//   `CognitoUserPoolStack${ckdStageName}`,
+//   {
+//     stageName,
+//     config,
+//   },
+// );
 
 // Dev environment only needs Cognito
 if (stageName !== StageNameEnum.DEVELOPMENT) {
