@@ -210,13 +210,17 @@ export class Ecstack extends cdk.Stack {
           memoryLimitMiB: 512,
           cpu: 256,
           assignPublicIp: true,
-          // certificate: this.certificate,
+          certificate: this.certificate,
+          redirectHTTP: true,
+          listenerPort: 443,
+          protocol: elbv2.ApplicationProtocol.HTTPS,
+          publicLoadBalancer: true,
           taskImageOptions: {
             containerName: this.repoName,
             image: ecs.ContainerImage.fromRegistry(
-              'okaycloud/dummywebserver:latest',
+              'tilersmyth/ecs-placeholder:latest',
             ),
-            containerPort: 8080,
+            containerPort: 3000,
             // environment: {
             //   AWS_COGNITO_REGION: 'us-east-1',
             //   AWS_COGNITO_POOL_ID: this.props.cognito.poolId,
