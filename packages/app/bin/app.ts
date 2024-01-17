@@ -18,18 +18,18 @@ const ckdStageName = capitalize(stageName);
 
 const config = buildAppConfig();
 
-// const cognito = new CognitoUserPoolStack(
-//   app,
-//   `CognitoUserPoolStack${ckdStageName}`,
-//   {
-//     stageName,
-//     config,
-//   },
-// );
+const cognito = new CognitoUserPoolStack(
+  app,
+  `CognitoUserPoolStack${ckdStageName}`,
+  {
+    stageName,
+    config,
+  },
+);
 
 // Dev environment only needs Cognito
 if (stageName !== StageNameEnum.DEVELOPMENT) {
-  new Ecstack(app, `EcsStack${ckdStageName}`, { stageName, config });
+  new Ecstack(app, `EcsStack${ckdStageName}`, { stageName, config, cognito });
 }
 
 app.synth();

@@ -102,7 +102,7 @@ export class CognitoUserPoolStack extends cdk.Stack {
       },
     });
 
-    this.oauthDomain = domain.domainName;
+    this.oauthDomain = domain.baseUrl();
 
     const identityPool = new cognito.CfnIdentityPool(this, 'IdentityPool', {
       allowUnauthenticatedIdentities: false,

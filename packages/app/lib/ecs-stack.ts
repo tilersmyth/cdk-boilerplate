@@ -26,7 +26,7 @@ import { CognitoUserPoolStack } from './cognito-stack';
 interface Props extends cdk.StackProps {
   stageName: StageNameEnum;
   config: ConfigEnv;
-  // cognito: CognitoUserPoolStack;
+  cognito: CognitoUserPoolStack;
 }
 
 export class Ecstack extends cdk.Stack {
@@ -206,7 +206,7 @@ export class Ecstack extends cdk.Stack {
         scope,
         'myLbFargateService',
         {
-          vpc: vpc,
+          vpc,
           memoryLimitMiB: 512,
           cpu: 256,
           assignPublicIp: true,
@@ -221,17 +221,17 @@ export class Ecstack extends cdk.Stack {
               'tilersmyth/ecs-placeholder:latest',
             ),
             containerPort: 3000,
-            // environment: {
-            //   AWS_COGNITO_REGION: 'us-east-1',
-            //   AWS_COGNITO_POOL_ID: this.props.cognito.poolId,
-            //   AWS_COGNITO_APP_CLIENT_ID: this.props.cognito.poolClientId,
-            //   AWS_COGNITO_IDENTITY_ID: this.props.cognito.identityPoolId,
-            //   AWS_OAUTH_DOMAIN: this.props.cognito.oauthDomain,
-            //   AWS_OAUTH_REDIRECT_SIGNIN:
-            //     this.props.config.production.oAuth.callbackUrls[0],
-            //   AWS_OAUTH_REDIRECT_SIGNOUT:
-            //     this.props.config.production.oAuth.logoutUrls[0],
-            // },
+            environment: {
+              AWS_COGNITO_REGION: 'us-east-1',
+              AWS_COGNITO_POOL_ID: this.props.cognito.poolId,
+              AWS_COGNITO_APP_CLIENT_ID: this.props.cognito.poolClientId,
+              AWS_COGNITO_IDENTITY_ID: this.props.cognito.identityPoolId,
+              AWS_OAUTH_DOMAIN: this.props.cognito.oauthDomain,
+              AWS_OAUTH_REDIRECT_SIGNIN:
+                this.props.config.production.oAuth.callbackUrls[0],
+              AWS_OAUTH_REDIRECT_SIGNOUT:
+                this.props.config.production.oAuth.logoutUrls[0],
+            },
           },
         },
       );
